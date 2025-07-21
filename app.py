@@ -67,21 +67,42 @@ def clean_number(value):
     except:
         return 0
 
+def find_store_columns(df):
+    """Mağaza sütunlarını dinamik olarak bul"""
+    # Mağaza kodları genellikle 3-4 haneli sayı + M/MM/MJET formatında
+    store_pattern = re.compile(r'^\d{3,4}\s*(M|MM|MJET)$')
+    
+    store_cols = []
+    store_start_idx = None
+    store_end_idx = None
+    
+    for idx, col in enumerate(df.columns):
+        if store_pattern.match(str(col).strip()):
+            if store_start_idx is None:
+                store_start_idx = idx
+            store_cols.append(col)
+        elif col == "TOPLAM" and store_start_idx is not None:
+            store_end_idx = idx
+            break
+    
+    return store_cols, store_start_idx, store_end_idx
+
 def process_file(file_buffer, original_filename):
     """Excel dosyasını işle ve yeni formata dönüştür"""
     with st.spinner('Dosyanız işleniyor...'):
         # Excel'i oku
         df = pd.read_excel(file_buffer, engine='openpyxl')
         
-        # Mağaza sütunlarını bul
-        try:
-            store_start_col = df.columns.get_loc("7684 M")
-            store_end_col = df.columns.get_loc("TOPLAM")
-        except:
-            st.error("❌ Mağaza sütunları bulunamadı. Lütfen dosya formatını kontrol edin.")
+        # Mağaza sütunlarını dinamik olarak bul
+        store_cols, store_start_idx, store_end_idx = find_store_columns(df)
+        
+        if not store_cols:
+            st.error("❌ Mağaza sütunları bulunamadı. Dosya formatı: Mağaza kodları (örn: 798 MM, 5776 M) ve TOPLAM sütunu olmalı.")
+            # Debug bilgisi göster
+            st.write("Bulunan sütunlar:", list(df.columns[:20]))
             return None, None, None, None, None
         
-        store_cols = df.columns[store_start_col:store_end_col]
+        st.success(f"✅ {len(store_cols)} mağaza sütunu bulundu")
         
         # Çıktı hazırla
         output_df = pd.DataFrame(columns=[
@@ -120,7 +141,7 @@ def process_file(file_buffer, original_filename):
                 value = clean_number(row[store_col])
                 
                 if value > 0:
-                    match = re.search(r'(\d{4})', store_col)
+                    match = re.search(r'(\d{3,4})', store_col)
                     if match:
                         magaza_kodu2 = match.group(1)
                         
