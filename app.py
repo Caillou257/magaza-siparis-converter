@@ -124,8 +124,8 @@ def process_file(file_buffer, original_filename):
         with st.expander("🔍 Bulunan Store Sütunları (Debug)"):
             store_debug_df = pd.DataFrame({
                 'Sütun Adı': store_cols,
-                'Store Kodu': [re.search(r'^(\d{3,4})', col).group(1) if re.search(r'^(\d{3,4})', col) else 'N/A' for col in store_cols],
-                'Store Tipi': [re.search(r'^\d{3,4}\s*([A-Za-z]*)$', col).group(1).upper() if re.search(r'^\d{3,4}\s*([A-Za-z]*)$', col) and re.search(r'^\d{3,4}\s*([A-Za-z]*)$', col).group(1) else 'NO_SUFFIX' for col in store_cols]
+                'Store Kodu': [re.search(r'^(\d{3,4})', str(col)).group(1) if re.search(r'^(\d{3,4})', str(col)) else 'N/A' for col in store_cols],
+                'Store Tipi': [re.search(r'^\d{3,4}\s*([A-Za-z]*)$', str(col)).group(1).upper() if re.search(r'^\d{3,4}\s*([A-Za-z]*)$', str(col)) and re.search(r'^\d{3,4}\s*([A-Za-z]*)$', str(col)).group(1) else 'NO_SUFFIX' for col in store_cols]
             })
             st.dataframe(store_debug_df, use_container_width=True, hide_index=True)
         
@@ -167,7 +167,7 @@ def process_file(file_buffer, original_filename):
                 
                 if value > 0:
                     # Çok daha esnek store kodu çıkarma - herhangi bir harf kombinasyonunu kaldır (büyük/küçük)
-                    match = re.search(r'^(\d{3,4})\s*[A-Za-z]*$', store_col)
+                    match = re.search(r'^(\d{3,4})\s*[A-Za-z]*$', str(store_col))
                     if match:
                         magaza_kodu2 = match.group(1)
                         
