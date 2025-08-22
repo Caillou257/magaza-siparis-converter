@@ -69,21 +69,37 @@ def clean_number(value):
 
 def find_store_columns(df):
     """Mağaza sütunlarını dinamik olarak bul"""
-    # Mağaza kodları genellikle 3-4 haneli sayı + M/MM/MJET formatında
-    store_pattern = re.compile(r'^\d{3,4}\s*(M|MM|MJET)$')
+    # Daha esnek pattern: 3-4 haneli sayı + opsiyonel harf kombinasyonu
+    # Bu pattern gelecekte yeni store tipleri eklendiğinde de çalışacak
+    store_pattern = re.compile(r'^\d{3,4}\s*[A-Z]+$')
     
     store_cols = []
     store_start_idx = None
     store_end_idx = None
     
+    # Bilinen store tiplerini logla (debug için)
+    found_store_types = set()
+    
     for idx, col in enumerate(df.columns):
-        if store_pattern.match(str(col).strip()):
+        col_str = str(col).strip()
+        if store_pattern.match(col_str):
             if store_start_idx is None:
                 store_start_idx = idx
             store_cols.append(col)
+            
+            # Store tipini çıkar ve logla
+            match = re.search(r'^\d{3,4}\s*([A-Z]+)$', col_str)
+            if match:
+                store_type = match.group(1)
+                found_store_types.add(store_type)
+                
         elif col == "TOPLAM" and store_start_idx is not None:
             store_end_idx = idx
             break
+    
+    # Debug bilgisi göster
+    if store_cols:
+        st.info(f"🔍 Bulunan store tipleri: {', '.join(sorted(found_store_types))}")
     
     return store_cols, store_start_idx, store_end_idx
 
@@ -103,6 +119,15 @@ def process_file(file_buffer, original_filename):
             return None, None, None, None, None
         
         st.success(f"✅ {len(store_cols)} mağaza sütunu bulundu")
+        
+        # Debug: Bulunan store sütunlarını göster
+        with st.expander("🔍 Bulunan Store Sütunları (Debug)"):
+            store_debug_df = pd.DataFrame({
+                'Sütun Adı': store_cols,
+                'Store Kodu': [re.search(r'^(\d{3,4})', col).group(1) if re.search(r'^(\d{3,4})', col) else 'N/A' for col in store_cols],
+                'Store Tipi': [re.search(r'^\d{3,4}\s*([A-Z]+)$', col).group(1) if re.search(r'^\d{3,4}\s*([A-Z]+)$', col) else 'N/A' for col in store_cols]
+            })
+            st.dataframe(store_debug_df, use_container_width=True, hide_index=True)
         
         # Çıktı hazırla
         output_df = pd.DataFrame(columns=[
@@ -141,7 +166,8 @@ def process_file(file_buffer, original_filename):
                 value = clean_number(row[store_col])
                 
                 if value > 0:
-                    match = re.search(r'(\d{3,4})', store_col)
+                    # Daha esnek store kodu çıkarma - herhangi bir harf kombinasyonunu kaldır
+                    match = re.search(r'^(\d{3,4})\s*[A-Z]*$', store_col)
                     if match:
                         magaza_kodu2 = match.group(1)
                         
@@ -446,6 +472,24 @@ with st.sidebar:
     
     st.markdown("### 🔧 Ayarlar")
     show_advanced = st.checkbox("Gelişmiş seçenekleri göster")
+    
+    # Store pattern bilgisi
+    with st.expander("🏪 Store Pattern Bilgisi"):
+        st.markdown("""
+        **Mevcut Pattern:** `^\d{3,4}\s*[A-Z]+$`
+        
+        Bu pattern şu formatları destekler:
+        - `1234 M` ✓
+        - `567 MM` ✓  
+        - `890 MMM` ✓
+        - `123 MJET` ✓
+        - `456 NEWTYPE` ✓ (gelecekteki yeni tipler)
+        
+        **Avantajlar:**
+        - ✅ Gelecekteki yeni store tiplerini otomatik algılar
+        - ✅ 3-4 haneli sayı + herhangi bir harf kombinasyonu
+        - ✅ Manuel güncelleme gerektirmez
+        """)
     
     if show_advanced:
         min_quantity = st.number_input(
